@@ -54,7 +54,13 @@ via browser-based testing: the real MetaMask extension was loaded in Chromium
 headless=new and `chrome.runtime.connect()` from `http://127.0.0.1` established a
 connection to MetaMask's CAIP path with no phishing check triggered. CHAIN-2 (VULN-5 + VULN-8,
 High CVSS 8.0) shows how a malicious backup disables phishing detection on ALL paths,
-then the attacker's site connects unprotected on any API path. CHAIN-3 (VULN-1 +
+then the attacker's site connects unprotected on any API path. CHAIN-2 was partially confirmed
+live via browser-based testing: the real MetaMask extension was loaded in Chromium
+headless=new and `chrome.runtime.connect()` from `http://127.0.0.1` established a
+CAIP path connection with no phishing check triggered; `window.ethereum` was injected
+by the content script with no phishing redirect. The storage modification component
+(VULN-5: setting `usePhishDetect: false`) was blocked by LavaMoat scuttling in the
+service worker and is proven via code analysis in `chain2_wallet_hijack_to_theft.sh`. CHAIN-3 (VULN-1 +
 VULN-4, Critical CVSS 9.0) shows how a compromised skills repo achieves arbitrary
 command execution in the CI pipeline, enabling a malicious MetaMask release.
 
@@ -114,6 +120,14 @@ but allows complete configuration hijacking via social engineering.
      missing `phishingController.test()` call in `setupUntrustedCommunicationCaip()`
      as the audited v13.34.0 source. The evidence JSON records which tier was used
      (`tier: "source-build"` or `tier: "official-crx-vX.Y.Z"`).
+   - CHAIN-2: Browser-based live test confirmed that the CAIP path allows
+     connections with no phishing check and that `window.ethereum` is injected by
+     the content script with no phishing redirect. The storage modification component
+     (setting `usePhishDetect: false` via `chrome.storage.local`) was blocked by
+     LavaMoat scuttling in the CRX service worker; this component is proven via code
+     analysis in `chain2_wallet_hijack_to_theft.sh`. Extension accessed via the same
+     3-tier source strategy as CHAIN-1. The evidence JSON records CAIP connection
+     result, EIP-1193 injection status, and storage modification attempt.
 4. **Honesty constraint:** No vulnerability was overstated. Where mitigating
    factors exist, they are documented in the finding.
 
@@ -1805,7 +1819,8 @@ vulnerability alone.
 | CVSS 3.1           | 8.0 (AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:H/A:N)                              |
 | Conservative CVSS  | 6.8 (AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N) if S:U — see caveats         |
 | Component Vulns    | VULN-5 (Medium 6.3) + VULN-8 (High 8.1)                                 |
-| PoC Script         | `exploits/chain2_wallet_hijack_to_theft.sh`                              |
+| PoC Script         | `exploits/chain2_wallet_hijack_to_theft.sh` (code analysis), `exploits/chain2_wallet_hijack_live.sh` (browser test) |
+| Live PoC Script    | `exploits/chain2_wallet_hijack_live.sh`                                  |
 | Affected Files     | `backup.js:20-45`, `metamask-controller.js:6929`, `metamask-controller.js:7036-7041` |
 
 **Title:** Wallet Config Hijack to Fund Theft: Malicious Backup Disables All Defenses
@@ -1887,6 +1902,20 @@ vulnerability alone.
 ```bash
 ./setup.sh
 ./exploits/chain2_wallet_hijack_to_theft.sh
+
+# Browser-based live test — 3-tier extension source resolution:
+#   Tier 1: use pre-built source at /app/dist/chrome (audited commit 4e88c336)
+#   Tier 2: build from source via yarn build:test:dev (NODE_OPTIONS=--max-old-space-size=4096)
+#   Tier 3: download official MetaMask CRX from Chrome Web Store (fallback when source
+#            build fails due to OOM in memory-constrained containers)
+#
+# CRX fallback note: The official CRX (v13.31.0) has the identical externally_connectable
+# config and CAIP routing logic as the audited source (v13.34.0). The usePhishDetect gate
+# at line 6929 and the missing phishingController.test() in setupUntrustedCommunicationCaip()
+# are confirmed present in both by chain2_wallet_hijack_to_theft.sh code analysis.
+# This is NOT a mock — it is the real MetaMask extension with real routing logic.
+# Evidence JSON records the tier used, storage before/after, CAIP and EIP-1193 results.
+./exploits/chain2_wallet_hijack_live.sh
 ```
 
 ---
@@ -2007,7 +2036,8 @@ vulnerability alone.
 | `exploits/vuln12_ipfs_gateway_loopback.sh`   | VULN-12 automated PoC              |
 | `exploits/chain1_silent_phishing.sh`         | CHAIN-1 end-to-end PoC (code analysis) |
 | `exploits/chain1_silent_phishing_live.sh`    | CHAIN-1 browser-based live test        |
-| `exploits/chain2_wallet_hijack_to_theft.sh`  | CHAIN-2 end-to-end PoC             |
+| `exploits/chain2_wallet_hijack_to_theft.sh`  | CHAIN-2 end-to-end PoC (code analysis) |
+| `exploits/chain2_wallet_hijack_live.sh`      | CHAIN-2 browser-based live test        |
 | `exploits/chain3_supply_chain_ci_takeover.sh` | CHAIN-3 end-to-end PoC (LIVE)    |
 
 ## Appendix: Docker Environment
