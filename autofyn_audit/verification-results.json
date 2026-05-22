@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-05-22T17:37:56.707Z",
+  "commit": "4e88c336d0a99c322429ec1cf4e6911263cdd0e9",
+  "results": [
+    {
+      "name": "VULN-01: MV3 externally_connectable allows all origins",
+      "status": "CONFIRMED"
+    },
+    {
+      "name": "VULN-02: dangerouslySetInnerHTML with server-sourced notification data",
+      "status": "CONFIRMED"
+    },
+    {
+      "name": "VULN-03: Trezor USB permissions uses wildcard postMessage target",
+      "status": "CONFIRMED"
+    },
+    {
+      "name": "VULN-04: CSP sandbox allows unsafe-inline and unsafe-eval",
+      "status": "CONFIRMED"
+    },
+    {
+      "name": "VULN-05: Postinstall script clones from public GitHub repository",
+      "status": "CONFIRMED"
+    },
+    {
+      "name": "VULN-06: Phishing redirect passes unsanitized href to URL fragment",
+      "status": "CONFIRMED"
+    },
+    {
+      "name": "VULN-07: LavaMoat allowScripts permits native binary execution in dependencies",
+      "status": "CONFIRMED"
+    },
+    {
+      "name": "VULN-08: CAIP engine missing createPermissionMiddleware",
+      "status": "CONFIRMED"
+    },
+    {
+      "name": "VULN-09: CAIP engine missing origin throttling middleware",
+      "status": "CONFIRMED"
+    },
+    {
+      "name": "VULN-10: CAIP method allowlist bypasses permission check for non-Snap origins",
+      "status": "CONFIRMED"
+    },
+    {
+      "name": "VULN-11: External website connections routed to CAIP instead of EIP-1193",
+      "status": "CONFIRMED"
+    }
+  ]
+}
