@@ -2030,7 +2030,7 @@ vulnerability alone.
 |----------------------------------------------|------------------------------------|
 | `setup.sh`                                   | Docker environment bootstrap       |
 | `teardown.sh`                                | Cleanup                            |
-| `run_all_exploits.sh`                        | Sequential exploit runner          |
+| `run_all_exploits.sh`                        | Sequential exploit runner (incl. browser-based live tests) |
 | `exploits/vuln1_supply_chain_rce.sh`         | VULN-1 automated PoC               |
 | `exploits/mock_skills_server/setup_mock_repo.sh` | VULN-1 mock repo helper        |
 | `exploits/vuln2_extension_id_leak.sh`        | VULN-2 automated PoC               |
