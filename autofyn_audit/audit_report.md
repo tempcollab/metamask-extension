@@ -476,8 +476,6 @@ the content script logic forwards arbitrary payloads without validation.
 
 ---
 
----
-
 ### VULN-4: Command Injection in CI Beta Release Script
 
 | Field          | Detail                                                                                 |
@@ -834,8 +832,6 @@ The script:
 
 3. **Audit all other `snap_*` methods** in `unrestrictedMethods` for similar
    capability grants that should require user-visible permissions.
-
----
 
 ---
 
@@ -1837,7 +1833,6 @@ vulnerability alone.
 | Conservative CVSS  | 6.8 (AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N) if S:U — see caveats         |
 | Component Vulns    | VULN-5 (Medium 6.3) + VULN-8 (High 8.1)                                 |
 | PoC Script         | `exploits/chain2_wallet_hijack_to_theft.sh` (code analysis), `exploits/chain2_wallet_hijack_live.sh` (browser test) |
-| Live PoC Script    | `exploits/chain2_wallet_hijack_live.sh`                                  |
 | Affected Files     | `backup.js:20-45`, `metamask-controller.js:6929`, `metamask-controller.js:7036-7041` |
 
 **Title:** Wallet Config Hijack to Fund Theft: Malicious Backup Disables All Defenses
