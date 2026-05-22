@@ -125,7 +125,9 @@ but allows complete configuration hijacking via social engineering.
      the content script with no phishing redirect. The storage modification component
      (setting `usePhishDetect: false` via `chrome.storage.local`) was blocked by
      LavaMoat scuttling in the CRX service worker; this component is proven via code
-     analysis in `chain2_wallet_hijack_to_theft.sh`. Extension accessed via the same
+     analysis in `chain2_wallet_hijack_to_theft.sh`. Storage modification was also
+     attempted via the extension's popup page context (bypassing the service worker
+     scuttling); see evidence JSON for results. Extension accessed via the same
      3-tier source strategy as CHAIN-1. The evidence JSON records CAIP connection
      result, EIP-1193 injection status, and storage modification attempt.
 4. **Honesty constraint:** No vulnerability was overstated. Where mitigating
