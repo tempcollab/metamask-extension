@@ -51,8 +51,10 @@ combining individual findings. CHAIN-1 (VULN-8 + VULN-9, Critical CVSS 9.3) show
 how a phishing site can bypass BOTH phishing detection and Blockaid security analysis
 for signing requests, resulting in zero security warnings. CHAIN-1 was confirmed live
 via browser-based testing: the real MetaMask extension was loaded in Chromium
-headless=new and `chrome.runtime.connect()` from `http://127.0.0.1` established a
-connection to MetaMask's CAIP path with no phishing check triggered. CHAIN-2 (VULN-5 + VULN-8,
+headless=new, `chrome.runtime.connect()` from `http://127.0.0.1` established a
+connection to MetaMask's CAIP path with no phishing check triggered, and
+`caip-348` wrapped JSON-RPC requests (`wallet_getSession`, `wallet_createSession`)
+were sent through the port — see evidence JSON for response details. CHAIN-2 (VULN-5 + VULN-8,
 High CVSS 8.0) shows how a malicious backup disables phishing detection on ALL paths,
 then the attacker's site connects unprotected on any API path. CHAIN-2 was partially confirmed
 live via browser-based testing: the real MetaMask extension was loaded in Chromium
@@ -109,7 +111,11 @@ but allows complete configuration hijacking via social engineering.
      testing was not performed for these findings.
    - CHAIN-1: Browser-based live test confirmed that any website can establish
      a `chrome.runtime.connect()` connection to MetaMask's CAIP path in Chromium
-     headless=new mode, with no phishing check triggered. Extension loaded via
+     headless=new mode, with no phishing check triggered. The live test also sends
+     `caip-348` wrapped `wallet_getSession` and `wallet_createSession` JSON-RPC
+     requests through the open port and captures any MetaMask responses,
+     demonstrating CAIP engine access beyond connection alone (see evidence JSON
+     for response details). Extension loaded via
      `--load-extension` with puppeteer-core. The live test uses a 3-tier extension
      source strategy: (1) pre-built source at `/app/dist/chrome` (audited commit
      4e88c336), (2) fresh `yarn build:test:dev` if not pre-built, (3) official
@@ -119,7 +125,9 @@ but allows complete configuration hijacking via social engineering.
      `externally_connectable` config (`["http://*/*", "https://*/*"]`) and the same
      missing `phishingController.test()` call in `setupUntrustedCommunicationCaip()`
      as the audited v13.34.0 source. The evidence JSON records which tier was used
-     (`tier: "source-build"` or `tier: "official-crx-vX.Y.Z"`).
+     (`tier: "source-build"` or `tier: "official-crx-vX.Y.Z"`) and the full CAIP
+     message exchange (`caipResponses`, `messagesProcessed`, `caipGetSessionResponse`,
+     `caipCreateSessionResponse`).
    - CHAIN-2: Browser-based live test confirmed that the CAIP path allows
      connections with no phishing check and that `window.ethereum` is injected by
      the content script with no phishing redirect. The storage modification component
@@ -1807,6 +1815,13 @@ vulnerability alone.
 # phishingController.test() call in setupUntrustedCommunicationCaip() is confirmed present
 # in both by chain1_silent_phishing.sh code analysis. This is NOT a mock — it is the real
 # MetaMask extension with real routing logic. Evidence JSON records the tier used.
+#
+# CAIP message flow: after establishing the connection, the live test sends
+# wallet_getSession (id=1, no user approval required) and wallet_createSession (id=2,
+# requests personal_sign + eth_sendTransaction scopes) as caip-348 wrapped JSON-RPC
+# messages through the port. Evidence JSON records caipResponses, messagesProcessed,
+# caipGetSessionResponse, and caipCreateSessionResponse. Connection alone confirms the
+# attack surface; responses are additional evidence of full CAIP engine access.
 ./exploits/chain1_silent_phishing_live.sh
 ```
 
