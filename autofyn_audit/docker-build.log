@@ -1,0 +1,228 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 2.53kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:24-bookworm@sha256:8530f76a96d88820d288761f022e318970dda93d01536919fbc16076b7983e63
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 176B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 DONE 0.0s
+
+#5 [builder  1/12] FROM docker.io/library/node:24-bookworm@sha256:8530f76a96d88820d288761f022e318970dda93d01536919fbc16076b7983e63
+#5 resolve docker.io/library/node:24-bookworm@sha256:8530f76a96d88820d288761f022e318970dda93d01536919fbc16076b7983e63
+#5 resolve docker.io/library/node:24-bookworm@sha256:8530f76a96d88820d288761f022e318970dda93d01536919fbc16076b7983e63 0.2s done
+#5 DONE 0.2s
+
+#4 [internal] load build context
+#4 transferring context: 812.82kB 0.7s done
+#4 DONE 0.8s
+
+#6 [runner  3/10] WORKDIR /exploit
+#6 CACHED
+
+#7 [runner  2/10] RUN apt-get update &&     apt-get install -y --no-install-recommends       chromium       fonts-liberation       libatk-bridge2.0-0       libdrm2       libgbm1       libgtk-3-0       libx11-xcb1       libxcomposite1       libxdamage1       libxrandr2       xdg-utils     && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [runner  5/10] RUN npm install --no-audit --no-fund
+#8 CACHED
+
+#9 [runner  4/10] COPY autofyn_audit/exploits/package.json .
+#9 CACHED
+
+#10 [builder  5/12] COPY .yarn .yarn
+#10 CACHED
+
+#11 [builder  4/12] COPY package.json yarn.lock .yarnrc.yml ./
+#11 CACHED
+
+#12 [builder  3/12] WORKDIR /build
+#12 CACHED
+
+#13 [builder  2/12] RUN apt-get update && apt-get install -y --no-install-recommends     python3 make g++ git     && rm -rf /var/lib/apt/lists/*
+#13 CACHED
+
+#14 [runner  6/10] COPY autofyn_audit/exploits/ .
+#14 CACHED
+
+#15 [builder  6/12] RUN corepack enable && corepack prepare yarn@4.14.1 --activate
+#15 CACHED
+
+#16 [builder  7/12] COPY . .
+#16 DONE 6.1s
+
+#17 [builder  8/12] RUN cp .metamaskrc.dist .metamaskrc
+#17 DONE 0.4s
+
+#18 [builder  9/12] RUN printf '#!/bin/sh\necho 4e88c336d0a99c322429ec1cf4e6911263cdd0e9\n' > /usr/local/bin/git &&     chmod +x /usr/local/bin/git
+#18 DONE 0.2s
+
+#19 [builder 10/12] RUN yarn install 2>&1 | tee /install-log.txt; exit 0
+#19 1.051 ➤ YN0000: · Yarn 4.14.1
+#19 1.071 ➤ YN0000: ┌ Resolution step
+#19 2.337 ➤ YN0000: └ Completed in 1s 266ms
+#19 2.339 ➤ YN0000: ┌ Post-resolution validation
+#19 2.339 ➤ YN0060: │ @metamask/providers is listed by your project with version 22.1.1 (p244a5b), which doesn't satisfy what @metamask/keyring-snap-client and other dependencies request (but they have non-overlapping ranges!).
+#19 2.339 ➤ YN0060: │ @metamask/snaps-execution-environments is listed by your project with version 11.0.2 (pd83d51), which doesn't satisfy what @metamask/snaps-controllers requests (^11.1.0).
+#19 2.339 ➤ YN0060: │ @typescript-eslint/eslint-plugin is listed by your project with version 8.55.0 (p8da17a), which doesn't satisfy what eslint-plugin-jest and other dependencies request (but they have non-overlapping ranges!).
+#19 2.339 ➤ YN0060: │ eslint-config-prettier is listed by your project with version 10.1.5 (pa0eea5), which doesn't satisfy what @metamask/eslint-config and other dependencies request (^8.5.0).
+#19 2.339 ➤ YN0060: │ eslint-plugin-n is listed by your project with version 17.24.0 (p493468), which doesn't satisfy what @metamask/eslint-config-nodejs requests (^16.6.2).
+#19 2.340 ➤ YN0060: │ eslint-plugin-prettier is listed by your project with version 5.5.5 (p072d3a), which doesn't satisfy what @metamask/eslint-config requests (^4.2.1).
+#19 2.340 ➤ YN0060: │ luxon is listed by your project with version 3.5.0 (p354284), which doesn't satisfy what @date-io/luxon and other dependencies request (but they have non-overlapping ranges!).
+#19 2.340 ➤ YN0060: │ prettier is listed by your project with version 3.6.2 (p89dade), which doesn't satisfy what @metamask/eslint-config and other dependencies request (but they have non-overlapping ranges!).
+#19 2.340 ➤ YN0060: │ react is listed by your project with version 17.0.2 (p7fd956), which doesn't satisfy what @welldone-software/why-did-you-render and other dependencies request (but they have non-overlapping ranges!).
+#19 2.340 ➤ YN0060: │ typescript is listed by your project with version 5.6.3 (p53a1bc), which doesn't satisfy what @metamask/eslint-config-typescript and other dependencies request (>=5.4.4 <5.6.0-0).
+#19 2.340 ➤ YN0060: │ webextension-polyfill is listed by your project with version 0.8.0 (pcd00db), which doesn't satisfy what @metamask/account-tree-controller and other dependencies request (~0.10.0 || ~0.11.0 || ~0.12.0).
+#19 2.340 ➤ YN0002: │ metamask-crx@workspace:. doesn't provide @metamask/eth-block-tracker (p818142), requested by @metamask/smart-transactions-controller and other dependencies.
+#19 2.340 ➤ YN0002: │ metamask-crx@workspace:. doesn't provide @mui/system (pc59628), requested by @mui/x-date-pickers.
+#19 2.340 ➤ YN0002: │ metamask-crx@workspace:. doesn't provide playwright (pf1cab8), requested by @metamask/client-mcp-core.
+#19 2.340 ➤ YN0002: │ metamask-crx@workspace:. doesn't provide react-native (p033b56), requested by @metamask/react-data-query and other dependencies.
+#19 2.340 ➤ YN0002: │ metamask-crx@workspace:. doesn't provide react-refresh (p33d9ef), requested by @pmmmwh/react-refresh-webpack-plugin.
+#19 2.340 ➤ YN0086: │ Some peer dependencies are incorrectly met by your project; run yarn explain peer-requirements <hash> for details, where <hash> is the six-letter p-prefixed code.
+#19 2.340 ➤ YN0086: │ Some peer dependencies are incorrectly met by dependencies; run yarn explain peer-requirements for details.
+#19 2.494 ➤ YN0000: └ Completed
+#19 2.494 ➤ YN0000: ┌ Fetch step
+#19 61.54 ➤ YN0013: │ 4038 packages were added to the project (+ 534.03 MiB).
+#19 61.54 ➤ YN0000: └ Completed in 59s 45ms
+#19 62.00 ➤ YN0000: ┌ Link step
+#19 228.4 ➤ YN0007: │ metamask-crx@workspace:. must be built because it never has been before or the last one failed
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT 
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT .xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT 
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT  ╔═╗ ╔═╗ ╦ ╦ ╔╗╔ ╔╦╗ ╦═╗ ╦ ╦         Portable and modular toolkit
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT  ╠╣  ║ ║ ║ ║ ║║║  ║║ ╠╦╝ ╚╦╝    for Ethereum Application Development
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT  ╚   ╚═╝ ╚═╝ ╝╚╝ ═╩╝ ╩╚═  ╩                 written in Rust.
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT 
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT .xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT 
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT Repo       : https://github.com/foundry-rs/
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT Book       : https://book.getfoundry.sh/
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT Chat       : https://t.me/foundry_rs/
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT Support    : https://t.me/foundry_support/
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT Contribute : https://github.com/orgs/foundry-rs/projects/2/
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT 
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT .xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT 
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT [foundryup] fetching anvil v0.3.0 for linux arm64
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT [foundryup] checking cache
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT [foundryup] binaries not in cache
+#19 234.2 ➤ YN0000: │ metamask-crx@workspace:. STDOUT [foundryup] installing from https://github.com/foundry-rs/foundry/releases/download/v0.3.0/foundry_v0.3.0_linux_arm64.tar.gz
+#19 241.4 ➤ YN0000: │ metamask-crx@workspace:. STDOUT [foundryup] verifying checksum for anvil
+#19 241.4 ➤ YN0000: │ metamask-crx@workspace:. STDOUT [foundryup] checksum verified for anvil
+#19 241.4 ➤ YN0000: │ metamask-crx@workspace:. STDOUT [foundryup] installed - anvil 0.3.0 (5a8bd89 2024-12-19T17:18:29.546936566Z)
+#19 241.4 ➤ YN0000: │ metamask-crx@workspace:. STDOUT [foundryup] done!
+#19 242.1 ➤ YN0000: └ Completed in 3m 1s
+#19 249.7 running lifecycle scripts for event "preinstall"
+#19 249.7 running lifecycle scripts for event "install"
+#19 249.7 - sharp#0.34.2
+#19 249.9 running lifecycle scripts for event "postinstall"
+#19 249.9 - $root$
+#19 253.7 - @sentry/cli#2.56.0
+#19 253.8 - @swc/core#1.13.2
+#19 253.9 - core-js-pure#3.41.0
+#19 253.9 - react-devtools>electron#23.3.0
+#19 257.6 - tsx>esbuild#0.27.7
+#19 257.7 running lifecycle scripts for top level package
+#19 262.2 ➤ YN0000: · Done with warnings in 4m 22s
+#19 DONE 264.3s
+
+#20 [builder 11/12] RUN SEGMENT_HOST='https://api.segment.io'     SEGMENT_WRITE_KEY='FAKE'     yarn build:dev testDev --apply-lavamoat=false 2>&1 | tee /build-log.txt
+#20 22.50 Building lavamoat runtime file (scuttling is on)
+#20 22.77 Running task "testDev"...
+#20 22.77 Starting 'testDev'...
+#20 22.77 Starting 'clean'...
+#20 22.78 Finished 'clean'
+#20 22.78 Starting 'styles:dev'...
+#20 36.45 Finished 'styles:dev'
+#20 36.45 Starting 'scripts:core:test-live:standardEntryPoints'...
+#20 36.46 Starting 'scripts:core:test-live:contentscript'...
+#20 36.46 Starting 'scripts:core:test-live:disable-console'...
+#20 36.47 Starting 'scripts:core:test-live:sentry'...
+#20 36.47 Starting 'static:dev'...
+#20 36.48 Starting 'manifest:testDev'...
+#20 36.48 Starting 'reload'...
+#20 36.49 Finished 'reload'
+#20 36.49 (node:20) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+#20 36.49 (Use `node --trace-deprecation ...` to show where the warning was created)
+#20 36.57 Finished 'manifest:testDev'
+#20 44.23 scripts:core:test-live:disable-console: Bundle start: "disable-console"
+#20 44.33 scripts:core:test-live:standardEntryPoints: Bundle start: "primary"
+#20 44.33 scripts:core:test-live:sentry: Bundle start: "sentry-install"
+#20 44.59 scripts:core:test-live:standardEntryPoints: (node:96) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+#20 44.59 (Use `node --trace-deprecation ...` to show where the warning was created)
+#20 44.96 scripts:core:test-live:contentscript: Bundle start: "inpage"
+#20 46.97 scripts:core:test-live:disable-console: (node:95) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+#20 46.97 (Use `node --trace-deprecation ...` to show where the warning was created)
+#20 47.07 scripts:core:test-live:disable-console: Bundle end: "disable-console"
+#20 57.29 scripts:core:test-live:contentscript: (node:107) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+#20 57.29 (Use `node --trace-deprecation ...` to show where the warning was created)
+#20 57.81 scripts:core:test-live:contentscript: Bundle end: "inpage"
+#20 58.43 scripts:core:test-live:contentscript: Bundle start: "contentscript"
+#20 84.56 scripts:core:test-live:sentry: (node:119) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+#20 84.56 (Use `node --trace-deprecation ...` to show where the warning was created)
+#20 84.69 scripts:core:test-live:sentry: Bundle end: "sentry-install"
+#20 95.09 scripts:core:test-live:contentscript: Bundle end: "contentscript"
+#20 228.5 [18:32:16] /build/dist/firefox/chromereload.js reloaded.
+#20 228.5 [18:32:16] /build/dist/firefox/bg-libs.js reloaded.
+#20 228.5 [18:32:16] /build/dist/firefox/ui-libs.js reloaded.
+#20 393.8 scripts:core:test-live:standardEntryPoints: Bundle end: "primary"
+#20 393.8 Bundle start: "app-init"
+#20 393.8 Bundle end: "app-init"
+#20 393.8 scripts:core:test-live:standardEntryPoints: node:fs:441
+#20 393.8     return binding.readFileUtf8(path, stringToFlags(options.flag));
+#20 393.8                    ^
+#20 393.8 
+#20 393.8 Error: ENOENT: no such file or directory, open './dist/chrome/scripts/runtime-lavamoat.js'
+#20 393.8     at readFileSync (node:fs:441:20)
+#20 393.8     at createManifestV3AppInitializationBundle (/build/development/build/scripts.js:474:21)
+#20 393.8     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+#20 393.8     at async EventEmitter.<anonymous> (/build/development/build/scripts.js:732:15) {
+#20 393.8   errno: -2,
+#20 393.8   code: 'ENOENT',
+#20 393.8   syscall: 'open',
+#20 393.8   path: './dist/chrome/scripts/runtime-lavamoat.js'
+#20 393.8 }
+#20 393.8 
+#20 393.8 Node.js v24.16.0
+#20 394.3 MetaMask build: Encountered an error while running task "testDev".
+#20 394.3 Error: MetaMask build: runInChildProcess for task "scripts:core:test-live:standardEntryPoints" encountered an error "1".
+#20 394.3     at ChildProcess.<anonymous> (/build/development/build/task.js:107:13)
+#20 394.3     at Object.onceWrapper (node:events:631:26)
+#20 394.3     at ChildProcess.emit (node:events:509:28)
+#20 394.3     at ChildProcess._handle.onexit (node:internal/child_process:295:12)
+#20 DONE 394.6s
+
+#21 [builder 12/12] RUN ls -la /build/dist/chrome/manifest.json
+#21 0.498 -rw-r--r-- 1 root root 3831 May 22 18:35 /build/dist/chrome/manifest.json
+#21 DONE 0.5s
+
+#22 [runner  7/10] COPY --from=builder /build/dist/chrome /extension
+#22 DONE 2.6s
+
+#23 [runner  8/10] COPY --from=builder /build-log.txt /build-log.txt
+#23 DONE 0.0s
+
+#24 [runner  9/10] COPY --from=builder /install-log.txt /install-log.txt
+#24 DONE 0.0s
+
+#25 [runner 10/10] RUN mkdir -p /results/screenshots /results/console-logs
+#25 DONE 0.2s
+
+#26 exporting to image
+#26 exporting layers
+#26 exporting layers 24.3s done
+#26 exporting manifest sha256:28d3616911313d61b1deb6f501bbd2f133f0e3459a07573584f9d89a5a117354 done
+#26 exporting config sha256:e425096fa14a83615c090fab5a17bb34824ace53fabc071fbfda060b09a991e7 done
+#26 exporting attestation manifest sha256:ec6feac519381f8012d784c76bd99e1f8d235c7b0c9d05c97350224c1134e50c done
+#26 exporting manifest list sha256:f643f5aac7aeacdcfe69c37252bf94407bf255f2273f1503eb9ce7a6488605a2 done
+#26 naming to docker.io/library/metamask-audit-exploit:latest done
+#26 unpacking to docker.io/library/metamask-audit-exploit:latest
+#26 unpacking to docker.io/library/metamask-audit-exploit:latest 9.2s done
+#26 DONE 33.7s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/i0i0pek3pg5d8ivbd8xvb6rm6

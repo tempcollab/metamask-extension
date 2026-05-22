@@ -1,0 +1,10 @@
+.git
+node_modules
+dist
+builds
+test-artifacts
+coverage
+storybook-build
+autofyn_audit/results
+autofyn_audit/exploits/node_modules
+*.log
