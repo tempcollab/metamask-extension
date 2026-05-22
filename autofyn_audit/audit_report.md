@@ -46,6 +46,21 @@ to Low after aligning the CVSS C:H to C:L to match the documented impracticality
 ‡VULN-9: SIWE bypass confirmed in MetaMask extension source; `detectSIWE()` parsing behavior depends on `@metamask/controller-utils` (not decompiled for this audit).
 †VULN-10: The ZeroNet redirect to localhost:43110 is an intentional design decision (CHANGELOG: "Add support for ZeroNet #7038"). The finding concerns the lack of validation on the `hash` and path components forwarded to the localhost endpoint, not the redirect itself. Classified as CWE-601 (URL Redirection / Open Redirect); `browser.tabs.update()` is a client-side redirect, not SSRF (CWE-918).
 
+**Exploit Chains:** Three critical end-to-end exploit chains were constructed by
+combining individual findings. CHAIN-1 (VULN-8 + VULN-9, Critical CVSS 9.3) shows
+how a phishing site can bypass BOTH phishing detection and Blockaid security analysis
+for signing requests, resulting in zero security warnings. CHAIN-2 (VULN-5 + VULN-8,
+High CVSS 8.0) shows how a malicious backup disables phishing detection on ALL paths,
+then the attacker's site connects unprotected on any API path. CHAIN-3 (VULN-1 +
+VULN-4, Critical CVSS 9.0) shows how a compromised skills repo achieves arbitrary
+command execution in the CI pipeline, enabling a malicious MetaMask release.
+
+| ID      | Title                                    | Chains          | Severity | CVSS 3.1 |
+|---------|------------------------------------------|-----------------|----------|----------|
+| CHAIN-1 | Silent Phishing                          | VULN-8 + VULN-9 | Critical | 9.3      |
+| CHAIN-2 | Wallet Config Hijack to Fund Theft       | VULN-5 + VULN-8 | High     | 8.0      |
+| CHAIN-3 | Supply Chain to CI Takeover              | VULN-1 + VULN-4 | Critical | 9.0      |
+
 **Overall risk:** The supply chain finding (VULN-1) and CI command injection (VULN-4)
 both present the highest risk to the release pipeline. **VULN-8 is the most critical new
 finding**: a phishing site can bypass MetaMask's phishing detection entirely by using the
@@ -1657,6 +1672,288 @@ The script:
 
 ---
 
+## Exploit Chains
+
+This section documents three end-to-end exploit chains constructed by combining individual
+vulnerabilities. Each chain demonstrates how the combination is more severe than either
+vulnerability alone.
+
+---
+
+### CHAIN-1: Silent Phishing — VULN-8 + VULN-9
+
+| Field              | Value                                                                    |
+|--------------------|--------------------------------------------------------------------------|
+| ID                 | CHAIN-1                                                                  |
+| Severity           | Critical                                                                 |
+| CVSS 3.1           | 9.3 (AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N)                              |
+| Conservative CVSS  | 8.1 (AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N) if S:U — see caveats         |
+| Component Vulns    | VULN-8 (High 8.1) + VULN-9 (Medium 6.5)                                 |
+| PoC Script         | `exploits/chain1_silent_phishing.sh`                                     |
+| Affected Files     | `metamask-controller.js:6984-7000`, `ppom-middleware.ts:101-106`         |
+
+**Title:** Silent Phishing: Phishing Site Bypasses Detection AND Blockaid Analysis
+
+#### Narrative Attack Scenario
+
+1. Attacker deploys a phishing page at `https://evil-phishing-site.com`. The page
+   embeds JavaScript that uses MetaMask's CAIP multichain API.
+2. Victim visits the page with MetaMask installed (Chrome MV3).
+3. Phishing site calls `chrome.runtime.connect()` to MetaMask. The
+   `externally_connectable` manifest entry matches `["http://*/*", "https://*/*"]` —
+   any website can connect.
+4. `connectExternallyConnectable()` routes the connection via `isDappConnecting=true`
+   to `connectCaipMultichain()` → `setupUntrustedCommunicationCaip()`. **VULN-8 fires:**
+   no `phishingController.test()`, no `usePhishDetect` check, no `sendPhishingWarning()`.
+   Connection is established silently.
+5. Phishing site sends `personal_sign` with a SIWE-formatted message. The message has
+   a valid EIP-4361 structure but the statement field contains a malicious authorization:
+   "I authorize transfer of ALL tokens to `0xATTACKER`."
+6. `ppom-middleware.ts` receives the request. `detectSIWE({ data })` returns
+   `isSIWEMessage: true`. Line 104: `if (isSIWEMessage) { return; }` **VULN-9 fires:**
+   `validateRequestWithPPOM` is never called. No Blockaid security alert is generated.
+7. User sees only a SIWE sign-in dialog with the malicious statement. Zero phishing
+   warning. Zero Blockaid alert.
+8. If user clicks "Sign", attacker receives the signature — usable to authorize
+   ERC-20 approvals or other on-chain actions framed as a login.
+
+#### Why the Chain is More Severe
+
+- **VULN-8 alone:** Phishing site bypasses phishing detection. But when the signing
+  request is processed, Blockaid/PPOM still runs `validateRequestWithPPOM`. If
+  Blockaid identifies the request as malicious, a security alert IS shown. Mitigation
+  remains: Blockaid can warn about the signing step.
+- **VULN-9 alone:** SIWE-formatted `personal_sign` bypasses Blockaid analysis. But
+  phishing detection still runs for the site connection. If the site is on MetaMask's
+  phishing list, the connection is blocked before the user reaches the signing dialog.
+  Mitigation remains: phishing detection can block the site.
+- **Combined:** VULN-8 eliminates the Blockaid mitigation of VULN-9. VULN-9 eliminates
+  the phishing detection mitigation of VULN-8. Both defenses are simultaneously
+  neutralized. The user is presented with **zero security warnings**.
+
+#### Combined CVSS Justification
+
+`AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N = 9.3`
+
+- **AV:N** — Network-delivered phishing site.
+- **AC:L** — CAIP API is publicly accessible via `externally_connectable`; no special
+  conditions required.
+- **PR:N** — No MetaMask permissions required prior to the attack.
+- **UI:R** — User must visit the phishing site and interact with the sign dialog.
+- **S:C** — VULN-8 crosses from the phishing detection subsystem to the signing
+  subsystem; VULN-9 crosses into the Blockaid/PPOM security analysis subsystem. Both
+  trust boundaries are crossed. Note: if reviewers argue the entire extension is one
+  authority (S:U), the score is 8.1 (High) — still the highest chain finding.
+- **C:H** — Account information is accessible to the phishing site.
+- **I:H** — Attacker obtains malicious signatures that can authorize on-chain actions.
+- **A:N** — No availability impact.
+
+#### Caveats
+
+- CAIP multichain API is relatively new; most phishing kits currently use EIP-1193
+- User must still interact with the MetaMask sign dialog (UI:R)
+- The malicious SIWE statement **is visible** in the signing dialog; an attentive user
+  could notice and reject the request
+- `detectSIWE()` is from `@metamask/controller-utils` (npm, not decompiled for this
+  audit); the bypass assumes format-based EIP-4361 detection, not content analysis
+- S:C is argued based on cross-subsystem bypass; reviewers may score S:U (8.1 High)
+
+#### Reproduction
+
+```bash
+./setup.sh
+./exploits/chain1_silent_phishing.sh
+```
+
+---
+
+### CHAIN-2: Wallet Config Hijack to Fund Theft — VULN-5 + VULN-8
+
+| Field              | Value                                                                    |
+|--------------------|--------------------------------------------------------------------------|
+| ID                 | CHAIN-2                                                                  |
+| Severity           | High                                                                     |
+| CVSS 3.1           | 8.0 (AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:H/A:N)                              |
+| Conservative CVSS  | 6.8 (AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N) if S:U — see caveats         |
+| Component Vulns    | VULN-5 (Medium 6.3) + VULN-8 (High 8.1)                                 |
+| PoC Script         | `exploits/chain2_wallet_hijack_to_theft.sh`                              |
+| Affected Files     | `backup.js:20-45`, `metamask-controller.js:6929`, `metamask-controller.js:7036-7041` |
+
+**Title:** Wallet Config Hijack to Fund Theft: Malicious Backup Disables All Defenses
+
+#### Narrative Attack Scenario
+
+1. Attacker creates a "fix your MetaMask" tutorial with a malicious backup JSON file
+   that contains: `usePhishDetect: false`, attacker-controlled RPC endpoint for
+   Ethereum Mainnet, and poisoned address book entries (e.g., "My Hardware Wallet
+   (Ledger)" pointing to the attacker's address).
+2. User imports the backup via MetaMask Settings > Experimental > Restore. **VULN-5
+   fires:** `restoreUserData()` calls `JSON.parse()` and passes the result to four
+   controllers with zero schema validation, URL allowlisting, or type checks.
+3. State after backup import: `usePhishDetect = false`; RPC for `0x1` =
+   `https://attacker-rpc.evil.com/mainnet`; address book poisoned.
+4. Attacker directs user to a phishing site. **Chain connection (line 6929):** the
+   EIP-1193 path checks `if (this.preferencesController.state.usePhishDetect)` at line
+   6929. Since `usePhishDetect` is now `false`, the entire phishing check block (lines
+   6929–6946) is **skipped**. EIP-1193 path now has no phishing check.
+5. `setupPhishingCommunication()` (lines 7036–7041) also returns early when
+   `usePhishDetect` is false — the phishing safe-list update channel is disabled.
+6. CAIP path was never protected (VULN-8). Combined: **ALL connection paths are
+   unprotected.** The phishing site connects freely.
+7. All user transactions route through `attacker-rpc.evil.com`. Attacker-RPC can
+   front-run transactions, return false balances, or drop transactions.
+8. If user sends funds to the poisoned address book entry "My Hardware Wallet
+   (Ledger)", the funds go to the attacker.
+
+#### Why the Chain is More Severe
+
+- **VULN-5 alone:** Malicious backup changes configuration (`usePhishDetect=false`,
+  RPC hijack). User might notice the RPC endpoint change in network settings. The
+  attacker still needs a delivery vector to monetize the config change.
+- **VULN-8 alone:** CAIP path bypasses phishing detection. But the EIP-1193 path (used
+  by most dApps and phishing kits) still has phishing detection when `usePhishDetect`
+  is `true` (the default).
+- **Combined:** VULN-5 sets `usePhishDetect=false`, which (via line 6929) disables the
+  EIP-1193 phishing check — the path most phishing kits use. VULN-8 already covers the
+  CAIP path. Together: **every connection path is unprotected** plus RPC is hijacked.
+
+#### Key Code Evidence
+
+- `metamask-controller.js:6929` — `if (this.preferencesController.state.usePhishDetect)` —
+  the entire EIP-1193 phishing check block is gated by this flag.
+- `metamask-controller.js:7036-7041` — `setupPhishingCommunication` reads `usePhishDetect`
+  and returns early if false — the phishing safe-list channel is disabled.
+- `metamask-controller.js:6984-7000` — `setupUntrustedCommunicationCaip` has no
+  `usePhishDetect` check at all (VULN-8).
+- `backup.js:20-45` — `restoreUserData()` performs `JSON.parse(jsonString)` followed
+  by direct controller updates with no validation.
+
+#### Combined CVSS Justification
+
+`AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:H/A:N = 8.0`
+
+- **AV:N** — Backup delivered over network; phishing site also network-delivered.
+- **AC:H** — Requires social engineering the user to import the malicious backup.
+- **PR:N** — No prior MetaMask permissions required.
+- **UI:R** — User must import the backup file and later visit the phishing site.
+- **S:C** — VULN-5 (backup restore) compromises the phishing detection subsystem by
+  disabling `usePhishDetect`; VULN-8 already bypasses the CAIP subsystem. The attack
+  crosses from backup/restore into phishing detection into the CAIP routing layer.
+  Note: if reviewers argue S:U (same extension), the score is 6.8 (Medium).
+- **C:H** — RPC hijack exposes all transaction data; poisoned address book enables
+  direct fund theft.
+- **I:H** — Attacker controls RPC, can obtain malicious signatures, can redirect funds.
+- **A:N** — No availability impact to MetaMask itself.
+
+#### Caveats
+
+- Requires social engineering the user to import a backup file (AC:H) — a
+  multi-step UI flow in MetaMask Settings > Experimental > Restore
+- RPC endpoint change is visible if user inspects network settings
+- Some dApps hardcode their own RPC endpoints and are unaffected by the RPC hijack
+- S:C justification is arguable; S:U yields 6.8 (Medium) — documented above
+
+#### Reproduction
+
+```bash
+./setup.sh
+./exploits/chain2_wallet_hijack_to_theft.sh
+```
+
+---
+
+### CHAIN-3: Supply Chain to CI Takeover — VULN-1 + VULN-4
+
+| Field              | Value                                                                    |
+|--------------------|--------------------------------------------------------------------------|
+| ID                 | CHAIN-3                                                                  |
+| Severity           | Critical                                                                 |
+| CVSS 3.1           | 9.0 (AV:N/AC:H/PR:N/UI:N/S:C/C:H/I:H/A:H)                              |
+| Component Vulns    | VULN-1 (High 8.1) + VULN-4 (High 8.2)                                   |
+| PoC Script         | `exploits/chain3_supply_chain_ci_takeover.sh` (LIVE)                     |
+| Affected Files     | `development/skills-postinstall.ts:19`, `development/generate-beta-commit.js:3-4,27-30` |
+| Live Status        | **Fully LIVE** — both `skills-postinstall.ts` and `generate-beta-commit.js` execute real code |
+
+**Title:** Supply Chain to CI Takeover: Compromised Skills Repo to Malicious Release
+
+#### Narrative Attack Scenario
+
+1. Attacker compromises `MetaMask/skills.git` (via account takeover or social
+   engineering of a maintainer). Attacker pushes malicious content to `main` branch,
+   including a modified `tools/sync` script that writes shell metacharacters into the
+   caller's `package.json` version field.
+2. Developer runs `yarn install`. `skills-postinstall.ts` (line 19: `PUBLIC_REPO =
+   'https://github.com/MetaMask/skills.git'`) clones the poisoned repo into
+   `.skills-cache/metamask-skills/` with no commit hash pinning, no GPG signature
+   verification, and no checksum. **VULN-1 fires:** malicious files are delivered to
+   the developer's machine.
+3. Developer (or CI pipeline) runs `yarn skills`. `skills-sync.ts` calls `spawnSync`
+   with the `tools/sync` path from the cloned repo. The attacker-controlled bash script
+   executes, writing `"version": "1.0.0$(touch /tmp/chain3-pwned)"` into `package.json`.
+
+   **Important:** Code execution from the cloned repo requires `yarn skills`, not just
+   `yarn install`. `skills-postinstall.ts` only clones; the execution happens when
+   `yarn skills` delegates to `tools/sync` from the cloned repo.
+
+4. CI pipeline runs `generate-beta-commit.js` for the beta release. Line 4 reads
+   `VERSION = require('../package.json').version`. Line 30: `await exec(\`yarn version
+   ${VERSION}-beta.0\`)`. **VULN-4 fires:** `exec()` passes the string to `/bin/sh -c`.
+   The shell interprets `$()` — arbitrary command execution occurs in the CI environment.
+5. Attacker exfiltrates npm tokens, code signing keys, and GitHub credentials from the
+   CI environment.
+6. Attacker publishes a malicious MetaMask extension to the Chrome Web Store. Millions
+   of users receive the compromised extension.
+
+#### Why the Chain is More Severe
+
+- **VULN-1 alone:** Attacker delivers arbitrary files to every developer machine on
+  `yarn install`. Files sit in `.skills-cache/` but require a separate step (`yarn
+  skills`) to execute attacker-controlled code. Delivery without guaranteed CI code
+  execution.
+- **VULN-4 alone:** `exec()` with unsanitized `VERSION` achieves command injection
+  when CI runs `generate-beta-commit.js`. But getting a malicious version string into
+  `package.json` normally requires a PR merge — protected by PR review.
+- **Combined:** VULN-1 provides the delivery vector that **bypasses PR review**. The
+  compromised `tools/sync` script modifies `package.json` during `yarn skills` in the
+  CI environment — after any PR was already reviewed and merged. No PR review can catch
+  it because the modification happens post-clone, not in a reviewed commit. VULN-4
+  then fires during the beta release workflow, escalating from file delivery to
+  arbitrary command execution.
+
+#### Combined CVSS Justification
+
+`AV:N/AC:H/PR:N/UI:N/S:C/C:H/I:H/A:H = 9.0`
+
+- **AV:N** — Attacker targets the upstream `MetaMask/skills.git` GitHub repository.
+- **AC:H** — Requires compromising the upstream skills repository.
+- **PR:N** — No prior privileges on the MetaMask project are required.
+- **UI:N** — Developers run `yarn install` and `yarn skills` as routine workflow
+  actions; these are not security-relevant user interactions.
+- **S:C** — The attack crosses from the development environment to the CI/CD pipeline
+  to the published Chrome Web Store extension, affecting millions of end users.
+- **C:H** — npm tokens, signing keys, and GitHub credentials are present in CI.
+- **I:H** — Attacker can publish a malicious MetaMask release.
+- **A:H** — A compromised release impacts millions of users (availability of a secure
+  wallet application).
+
+#### Caveats
+
+- Requires compromising the `MetaMask/skills` GitHub repository (AC:H)
+- The chain requires **both** `yarn install` AND `yarn skills` to complete; `yarn
+  install` alone only clones the repo, it does not execute code from it
+- Multiple steps with detection opportunities (CI monitoring, anomalous git activity)
+- `git clone` uses HTTPS (TLS-protected); the attack vector is upstream repo
+  compromise, not MITM
+
+#### Reproduction
+
+```bash
+./setup.sh
+./exploits/chain3_supply_chain_ci_takeover.sh
+```
+
+---
+
 ## Appendix: Exploit Files
 
 | File                                         | Purpose                            |
@@ -1679,6 +1976,9 @@ The script:
 | `exploits/vuln10_ens_zeronet_ssrf.sh`        | VULN-10 automated PoC              |
 | `exploits/vuln11_snap_svg_injection.sh`      | VULN-11 automated PoC              |
 | `exploits/vuln12_ipfs_gateway_loopback.sh`   | VULN-12 automated PoC              |
+| `exploits/chain1_silent_phishing.sh`         | CHAIN-1 end-to-end PoC             |
+| `exploits/chain2_wallet_hijack_to_theft.sh`  | CHAIN-2 end-to-end PoC             |
+| `exploits/chain3_supply_chain_ci_takeover.sh` | CHAIN-3 end-to-end PoC (LIVE)    |
 
 ## Appendix: Docker Environment
 
