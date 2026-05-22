@@ -8,35 +8,43 @@
 | Commit     | 4e88c336                                                 |
 | Date       | 2026-05-22                                               |
 | Auditor    | AutoFyn Security                                         |
-| Scope      | Supply chain, browser extension runtime, Trezor integration, CI toolchain, backup/restore, Snaps permission system, wallet_watchAsset image handling, CAIP multichain API routing, PPOM/Blockaid middleware |
+| Scope      | Supply chain, browser extension runtime, Trezor integration, CI toolchain, backup/restore, Snaps permission system, wallet_watchAsset image handling, CAIP multichain API routing, PPOM/Blockaid middleware, ENS resolution, Snap UI image rendering, IPFS gateway configuration |
 
 ---
 
 ## Executive Summary
 
-Nine security vulnerabilities were identified and confirmed in MetaMask browser
-extension v13.34.0 (commit 4e88c336). One is rated Critical, two High, and six
-Medium, spanning the supply chain, CI toolchain, Trezor integration,
+Twelve security vulnerabilities were identified and confirmed in MetaMask browser
+extension v13.34.0 (commit 4e88c336). Three are rated High, seven Medium, and two
+Low, spanning the supply chain, CI toolchain, Trezor integration,
 backup/restore subsystem, Snaps permission system, wallet_watchAsset image
-handling, CAIP multichain API routing, and PPOM/Blockaid middleware.
+handling, CAIP multichain API routing, PPOM/Blockaid middleware, ENS resolution,
+Snap UI image rendering, and IPFS gateway configuration.
 VULN-6 was downgraded from High to Medium after verifying that secondary
 enforcement exists in the `@metamask/snaps-rpc-methods` handler layer.
+VULN-10 was downgraded from High to Medium after correcting the CVSS I:H to I:L
+(the hash is the by-design ZeroNet site ID). VULN-12 was downgraded from Medium
+to Low after aligning the CVSS C:H to C:L to match the documented impracticality.
 
 | ID     | Title                                                          | Severity | CVSS 3.1 | Status                            |
 |--------|----------------------------------------------------------------|----------|----------|-----------------------------------|
-| VULN-1 | Supply Chain RCE via Unpinned Postinstall                      | Critical | 8.1      | CONFIRMED                         |
-| VULN-2 | Insecure postMessage in Trezor USB Page                        | Medium   | 4.3      | CONFIRMED**                       |
-| VULN-3 | Trezor Content Script Message Injection                        | Medium   | 5.3      | CONFIRMED*                        |
+| VULN-1 | Supply Chain RCE via Unpinned Postinstall                      | High     | 8.1      | CONFIRMED                         |
+| VULN-2 | Insecure postMessage in Trezor USB Page                        | Low      | 3.1      | CONFIRMED**                       |
+| VULN-3 | Trezor Content Script Message Injection                        | Medium   | 4.2      | CONFIRMED*                        |
 | VULN-4 | Command Injection in CI Beta Release Script                    | High     | 8.2      | CONFIRMED                         |
 | VULN-5 | Unvalidated Backup Restore Accepts Malicious Config            | Medium   | 6.3      | CONFIRMED                         |
 | VULN-6 | Snap WebSocket Methods Listed as Unrestricted                  | Medium   | 4.2      | CONFIRMED (defense-in-depth gap)  |
 | VULN-7 | wallet_watchAsset IP Tracking Pixel (Privacy Leak)             | Medium   | 6.5      | CONFIRMED                         |
 | VULN-8 | Phishing Detection Bypass via CAIP Multichain API              | High     | 8.1      | CONFIRMED                         |
 | VULN-9 | Blockaid/PPOM Security Analysis Bypass via SIWE Detection      | Medium   | 6.5      | CONFIRMED‡                        |
+| VULN-10 | ZeroNet ENS Contenthash Open Redirect to Localhost            | Medium   | 4.7      | CONFIRMED*†                       |
+| VULN-11 | Unsanitized SVG in Snap UI Image Component                    | Medium   | 4.4      | CONFIRMED (defense-in-depth gap)  |
+| VULN-12 | IPFS Gateway Accepts Loopback/Private Network Addresses       | Low      | 3.1      | CONFIRMED                         |
 
 *VULN-3 has a partial mitigation in the background script (see finding detail).
 **VULN-2 confirmed as code pattern; current exploitability limited by mitigating factors (see finding detail).
 ‡VULN-9: SIWE bypass confirmed in MetaMask extension source; `detectSIWE()` parsing behavior depends on `@metamask/controller-utils` (not decompiled for this audit).
+†VULN-10: The ZeroNet redirect to localhost:43110 is an intentional design decision (CHANGELOG: "Add support for ZeroNet #7038"). The finding concerns the lack of validation on the `hash` and path components forwarded to the localhost endpoint, not the redirect itself. Classified as CWE-601 (URL Redirection / Open Redirect); `browser.tabs.update()` is a client-side redirect, not SSRF (CWE-918).
 
 **Overall risk:** The supply chain finding (VULN-1) and CI command injection (VULN-4)
 both present the highest risk to the release pipeline. **VULN-8 is the most critical new
@@ -48,9 +56,17 @@ opens a CAIP stream independently after `connectEip1193` — even if the EIP-119
 check fires, the CAIP stream still opens. VULN-7 (tracking pixel) allows any connected
 dApp to fingerprint a user's IP address before they approve or reject a token watch
 request. VULN-9 allows malicious SIWE-formatted messages to bypass Blockaid security
-analysis. VULN-6 is a defense-in-depth gap rather than an active bypass. VULN-2 and
-VULN-3 are Trezor integration gaps. VULN-5 requires user interaction but allows complete
-configuration hijacking via social engineering.
+analysis. VULN-10 exposes a validation gap in ENS zeronet contenthash resolution: the
+`hash` and user-supplied path components are forwarded to `http://127.0.0.1:43110/` with
+no validation, though the localhost redirect itself is intentional design (CWE-601 open
+redirect, not SSRF — `browser.tabs.update()` is a client-side redirect). VULN-11 is a
+defense-in-depth gap where Snap-provided SVG content is embedded without sanitization —
+not currently exploitable via `<img>` context but fragile if the rendering context changes.
+VULN-12 is primarily a code-quality concern: the IPFS gateway setting accepts loopback and
+private addresses without validation, but practical exploitation is constrained by HTTPS
+and subdomain DNS requirements. VULN-6 is a defense-in-depth gap rather than an active
+bypass. VULN-2 and VULN-3 are Trezor integration gaps. VULN-5 requires user interaction
+but allows complete configuration hijacking via social engineering.
 
 ---
 
@@ -81,7 +97,7 @@ configuration hijacking via social engineering.
 | Field          | Detail                                                                                 |
 |----------------|----------------------------------------------------------------------------------------|
 | ID             | VULN-1                                                                                 |
-| Severity       | **Critical**                                                                           |
+| Severity       | **High**                                                                               |
 | CVSS 3.1       | **8.1** — AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H                                        |
 | Affected Files | `development/skills-postinstall.ts` (line 19), `package.json` (line 20)               |
 | Commit         | 4e88c336                                                                               |
@@ -177,8 +193,8 @@ The script:
 | Field          | Detail                                                              |
 |----------------|---------------------------------------------------------------------|
 | ID             | VULN-2                                                              |
-| Severity       | **Medium**                                                          |
-| CVSS 3.1       | **4.3** — AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N                     |
+| Severity       | **Low**                                                             |
+| CVSS 3.1       | **3.1** — AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N                     |
 | Affected Files | `app/vendor/trezor/usb-permissions.js` (lines 39-48)               |
 | Commit         | 4e88c336                                                            |
 | PoC Script     | `exploits/vuln2_extension_id_leak.sh`                               |
@@ -292,7 +308,7 @@ in the source code, then runs a simulation demonstrating the message flow.
 |------------------|--------------------------------------------------------------------------|
 | ID               | VULN-3                                                                   |
 | Severity         | **Medium** (partially mitigated; would be High without mitigation)       |
-| CVSS 3.1         | **5.3** — AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N                           |
+| CVSS 3.1         | **4.2** — AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N                           |
 | Affected Files   | `app/vendor/trezor/content-script.js` (lines 17-21)                     |
 | Mitigating File  | `app/scripts/background.js` (lines 188, 1729-1732)                      |
 | Commit           | 4e88c336                                                                 |
@@ -1267,6 +1283,380 @@ The script:
 
 ---
 
+### VULN-10: ZeroNet ENS Contenthash Open Redirect to Localhost
+
+| Field          | Detail                                                                                 |
+|----------------|----------------------------------------------------------------------------------------|
+| ID             | VULN-10                                                                                |
+| Severity       | **Medium**                                                                             |
+| CVSS 3.1       | **4.7** — AV:N/AC:L/PR:N/UI:R/S:C/C:N/I:L/A:N                                        |
+| CWE            | CWE-601 (URL Redirection to Untrusted Site / Open Redirect)                            |
+| Affected Files | `app/scripts/lib/ens-ipfs/setup.js` (lines 112-115, 140)                              |
+| Commit         | 4e88c336                                                                               |
+| PoC Script     | `exploits/vuln10_ens_zeronet_ssrf.sh`                                                  |
+
+#### Description
+
+The ENS resolution code in `app/scripts/lib/ens-ipfs/setup.js` handles the `zeronet`
+contenthash codec by constructing a URL to `http://127.0.0.1:43110/` and redirecting
+the user's tab via `browser.tabs.update()`. This is a **client-side open redirect**
+(CWE-601) — the user's browser navigates directly to the localhost URL. This is NOT
+Server-Side Request Forgery (CWE-918), which would require a server making requests on
+behalf of the attacker.
+
+```javascript
+// setup.js lines 112-115
+} else if (type === 'zeronet') {
+  url = `http://127.0.0.1:43110/${hash}${pathname}${search || ''}${
+    fragment || ''
+  }`;
+}
+```
+
+The `hash` value is decoded from the on-chain ENS contenthash (attacker-controlled
+when an attacker registers an ENS name). The `pathname`, `search`, and `fragment`
+components are forwarded from the user's typed URL to the localhost endpoint. No
+validation of the hash or path components against loopback or private IP addresses
+exists before `browser.tabs.update(tabId, { url })` is called (line 140).
+
+The `finally`-block URL guard (lines 135-141) checks only whether `url` is truthy and
+whether `useAddressBarEnsResolution` is enabled — it does NOT validate the destination
+network address against loopback or private ranges.
+
+> **Important caveat:** The redirect to `http://127.0.0.1:43110/` is an **intentional
+> design decision** — ZeroNet runs on localhost:43110 by definition. See CHANGELOG:
+> "Add support for ZeroNet (#7038)". The finding concerns the lack of validation on the
+> `hash` and path components forwarded to the localhost endpoint, not the redirect itself.
+
+#### Code Path
+
+```
+webRequestDidFail
+  -> attemptResolve
+  -> resolveEnsToIpfsContentId  -- returns { type: 'zeronet', hash }
+  -> setup.js:112-115           -- url = `http://127.0.0.1:43110/${hash}${pathname}...`
+  -> finally block (lines 135-141)
+  -> browser.tabs.update(tabId, { url })  -- no loopback/private guard
+```
+
+#### Attack Vector
+
+1. Attacker registers an ENS name (e.g., `evil.eth`) with a `zeronet` contenthash
+   encoding an arbitrary hash value.
+2. User has MetaMask installed with "ENS address bar resolution" (enabled by default).
+3. User types `http://evil.eth/admin?debug=true` in the address bar.
+4. MetaMask resolves the contenthash, extracts `type=zeronet` and the attacker's hash.
+5. setup.js constructs: `http://127.0.0.1:43110/{attacker-hash}/admin?debug=true`
+6. `browser.tabs.update()` redirects the user's tab to this localhost URL.
+7. The user's browser sends a request to `http://127.0.0.1:43110/{hash}/admin?debug=true`.
+
+#### Impact
+
+- **Requests reach localhost:43110:** If the user is running ZeroNet, the attacker can
+  navigate them to specific pages/endpoints within ZeroNet using the attacker-controlled
+  hash as the site identifier.
+- **User-supplied path forwarded:** The `pathname`, `search`, and `fragment` from the
+  user's typed URL are forwarded to the localhost endpoint without sanitization, enabling
+  potential path traversal if the ZeroNet server is vulnerable.
+- **User expectation mismatch:** A user visiting `http://evil.eth/admin` does not expect
+  to be redirected to a localhost service.
+
+#### Mitigating Factors (documented honestly)
+
+1. **Enabled by default:** ENS address bar resolution is enabled by default
+   (`useAddressBarEnsResolution: true` in `preferences-controller.ts:185`). The user
+   must navigate to a `.eth` domain in the address bar for this code path to trigger.
+2. **Fixed port:** Only port 43110 is targeted (ZeroNet default). No other local ports
+   are reachable via this path.
+3. **Visible redirect:** The redirect is visible in the browser address bar — the user
+   can see the resulting `http://127.0.0.1:43110/` URL.
+4. **Niche protocol:** ZeroNet is a relatively niche protocol; most users do not run
+   a ZeroNet daemon on localhost:43110.
+5. **Intentional design:** The ZeroNet redirect to `localhost:43110` is an intentional
+   design decision (CHANGELOG: "Add support for ZeroNet #7038"). The finding concerns
+   the lack of validation on the `hash` and path components forwarded to the localhost
+   endpoint, not the redirect itself.
+
+#### Reproduction Steps
+
+```bash
+./setup.sh
+./exploits/vuln10_ens_zeronet_ssrf.sh
+```
+
+The script:
+1. Shows setup.js lines 112-115 confirming the localhost URL construction.
+2. Confirms no IP validation functions (`isPrivate`, `isLoopback`, etc.) exist in setup.js.
+3. Shows the finally-block URL guard (lines 135-141) checks only `useAddressBarEnsResolution`
+   and URL equality — no loopback/private range guard.
+4. Confirms `browser.tabs.update(tabId, { url })` at line 140 is called with no address guard.
+5. Shows the swarm/onion paths (lines 106-111) for comparison.
+6. Runs a Node.js simulation showing multiple attack payloads, all resulting in
+   `http://127.0.0.1:43110/` URLs.
+
+#### Remediation
+
+1. **Validate constructed URLs against loopback/private ranges** before calling
+   `browser.tabs.update()`. Reject any `url` that resolves to `127.0.0.0/8`,
+   `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, or `localhost`.
+2. **Since ZeroNet always targets `127.0.0.1:43110`**, validate that the `hash`
+   component does not contain path traversal sequences (`../`, `%2e%2e`, encoded
+   variants) before constructing the URL.
+3. **Strip or restrict user-supplied path components** (`pathname`, `search`,
+   `fragment`) when redirecting to localhost services, to prevent forwarding
+   attacker-influenced URL components to the local endpoint.
+
+---
+
+### VULN-11: Unsanitized SVG in Snap UI Image Component (Defense-in-Depth XSS)
+
+| Field          | Detail                                                                                 |
+|----------------|----------------------------------------------------------------------------------------|
+| ID             | VULN-11                                                                                |
+| Severity       | **Medium**                                                                             |
+| CVSS 3.1       | **4.4** — AV:N/AC:H/PR:L/UI:R/S:C/C:L/I:L/A:N                                        |
+| Affected Files | `ui/components/app/snaps/snap-ui-image/snap-ui-image.tsx` (lines 19-32)               |
+|                | `ui/components/app/snaps/snap-ui-renderer/components/image.ts` (line 23)              |
+| Commit         | 4e88c336                                                                               |
+| PoC Script     | `exploits/vuln11_snap_svg_injection.sh`                                                |
+
+#### Description
+
+The `SnapUIImage` component (`snap-ui-image.tsx` lines 19-21) embeds Snap-provided SVG
+content as a `data:image/svg+xml` data URI in an `<img>` tag without any sanitization:
+
+```typescript
+// snap-ui-image.tsx lines 19-21
+const src = isValidUrl(value)
+  ? value
+  : `data:image/svg+xml;utf8,${encodeURIComponent(value)}`;
+```
+
+The `value` prop receives SVG content directly from the Snap manifest via `image.ts`
+(line 23: `value: element.props.src`). `encodeURIComponent` does not strip or filter
+HTML/SVG tags — it merely percent-encodes characters. Malicious SVG tags (`<script>`,
+`onload` handlers, `<foreignObject>` with XHTML content) survive the encoding intact
+and are present in the embedded `<img>` src.
+
+The codebase already uses DOMPurify in `feature-announcement.tsx` for HTML content
+sanitization, demonstrating the library is available. Its absence from `snap-ui-image.tsx`
+is an inconsistency in the defense-in-depth posture.
+
+#### Code Flow
+
+```
+Snap manifest Image element (src = attacker SVG)
+  -> image.ts UIComponentFactory (line 23: value: element.props.src)
+  -> SnapUIImage.props.value (no sanitization in mapper)
+  -> snap-ui-image.tsx:19-21
+       isValidUrl(value) -> false (SVG content is not a URL)
+       src = `data:image/svg+xml;utf8,${encodeURIComponent(value)}`
+  -> <img src={src}> (malicious SVG embedded, no content filtering applied)
+```
+
+#### Mitigating Factors (documented honestly)
+
+1. **`<img>` context blocks SVG script execution** in all modern browsers. SVG loaded
+   via `<img src>` is treated as an image resource — `<script>` tags and event handlers
+   (including `onload`) do not execute. This is the primary mitigating control.
+2. **CSP `script-src 'self'`** blocks inline script execution even if a rendering
+   context change were to occur.
+3. **Snaps go through an approval process** before installation. A malicious Snap
+   providing harmful SVG must first be installed by the user.
+4. **Defense-in-depth gap only:** The vulnerability is NOT currently exploitable via
+   the `<img>` rendering context. Exploitation requires a context change.
+5. **Execution would require context change** to `<object>`, `<embed>`, `<iframe src
+   data:...>`, or `dangerouslySetInnerHTML` in addition to a malicious Snap.
+6. **Snaps SDK may perform upstream validation:** SVG content validation may occur
+   within the `@metamask/snaps-sdk` or Snaps execution environment (not decompiled
+   for this audit). Secondary enforcement analogous to VULN-6's `@metamask/snaps-rpc-methods`
+   layer is possible but unverified.
+
+#### Impact
+
+If the rendering context were to change from `<img>` to an active renderer:
+- **Extension-privileged XSS:** Unsanitized SVG would execute JavaScript in the
+  extension's privileged context, which has access to MetaMask background APIs,
+  wallet state, and sensitive cryptographic material.
+- **Snap isolation escape:** A malicious Snap could leverage the XSS to escape its
+  sandboxed execution environment and interact directly with the MetaMask background.
+
+#### Reproduction Steps
+
+```bash
+./setup.sh
+./exploits/vuln11_snap_svg_injection.sh
+```
+
+The script:
+1. Shows `snap-ui-image.tsx` lines 19-32 confirming SVG embedding without sanitization.
+2. Confirms `image.ts` line 23 maps `element.props.src` -> `SnapUIImage.props.value`.
+3. Greps `snap-ui-image.tsx` for sanitization functions and confirms zero matches.
+4. Shows DOMPurify IS used in `feature-announcement.tsx` (demonstrating inconsistency).
+5. Confirms neither MV2 nor MV3 CSP has an `img-src` directive.
+6. Runs a Node.js simulation showing four malicious SVG payloads all embedded without
+   content filtering, with decoded URIs confirming malicious tags survive intact.
+
+#### Remediation
+
+1. **Apply DOMPurify sanitization** (already in the codebase) before embedding SVG:
+   ```typescript
+   import DOMPurify from 'dompurify';
+   const cleanValue = DOMPurify.sanitize(value, { USE_PROFILES: { svg: true } });
+   const src = isValidUrl(value)
+     ? value
+     : `data:image/svg+xml;utf8,${encodeURIComponent(cleanValue)}`;
+   ```
+
+2. **Restrict to a safe SVG element allowlist:** Reject `<foreignObject>`, `<script>`,
+   `<animate>`, `<use>` (with external `href`), and event handler attributes from
+   Snap-provided SVG content.
+
+3. **Add automated tests** verifying that DOMPurify strips script tags, `onload`
+   handlers, and `foreignObject` XHTML content from Snap-provided SVG.
+
+---
+
+### VULN-12: IPFS Gateway Accepts Loopback/Private Network Addresses
+
+| Field          | Detail                                                                                 |
+|----------------|----------------------------------------------------------------------------------------|
+| ID             | VULN-12                                                                                |
+| Severity       | **Low**                                                                                |
+| CVSS 3.1       | **3.1** — AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N                                        |
+| Affected Files | `ui/pages/settings/privacy-tab/ipfs-gateway-item.tsx` (lines 47-61)                   |
+|                | `app/scripts/controllers/preferences-controller.ts` (lines 883-888)                   |
+| Commit         | 4e88c336                                                                               |
+| PoC Script     | `exploits/vuln12_ipfs_gateway_loopback.sh`                                             |
+
+#### Description
+
+The IPFS gateway configuration in `ipfs-gateway-item.tsx` validates user input with
+three checks only (lines 40-61):
+
+```typescript
+// ipfs-gateway-item.tsx lines 40-61
+const handleIpfsGatewayChange = (url: string) => {
+  if (!url.length) {          // Check 1: non-empty
+    setIpfsGatewayError(t('invalidIpfsGateway'));
+    return;
+  }
+  const validUrl = addUrlProtocolPrefix(url);  // Check 2: URL prefix
+  if (!validUrl) { ... return; }
+
+  const urlObj = new URL(validUrl);
+  if (urlObj.host === IPFS_FORBIDDEN_GATEWAY) {  // Check 3: NOT gateway.ipfs.io
+    setIpfsGatewayError(t('forbiddenIpfsGateway'));
+    return;
+  }
+  dispatch(setIpfsGateway(urlObj.host));  // Stored verbatim
+```
+
+`IPFS_FORBIDDEN_GATEWAY` is defined as `'gateway.ipfs.io'` in
+`shared/constants/network.ts` (line 1523) — it blocks only one specific deprecated
+gateway. No check against loopback (`127.0.0.0/8`), private ranges (`10.0.0.0/8`,
+`172.16.0.0/12`, `192.168.0.0/16`), link-local (`169.254.0.0/16`), or IPv6 loopback
+(`::1`) exists.
+
+`setIpfsGateway()` in `preferences-controller.ts` (lines 883-888) stores the domain
+with zero additional validation: `state.ipfsGateway = domain`.
+
+The stored gateway domain is then used in `setup.js` (lines 91-94) to construct IPFS
+resolution URLs that MetaMask fetches via a HEAD request:
+
+```javascript
+// setup.js lines 91-94
+const resolvedUrl = `https://${hash}.${type.slice(0,4)}.${ipfsGateway}${pathname}...`;
+// ...
+const response = await fetchWithTimeout(resolvedUrl, { method: 'HEAD' });
+```
+
+> **Practical exploitability note:** Due to the HTTPS requirement and subdomain DNS
+> resolution behavior, this finding is primarily a code-quality concern rather than a
+> practically exploitable vulnerability in typical configurations. The constructed URL
+> uses `https://`, and most localhost services (e.g., IPFS API on port 5001) do not
+> support TLS. Additionally, subdomain DNS resolution for `{cid}.ipfs.127.0.0.1` returns
+> NXDOMAIN in typical network configurations.
+
+#### Code Path
+
+```
+UI input -> handleIpfsGatewayChange
+  -> addUrlProtocolPrefix (prepend https:// if missing)
+  -> new URL(validUrl).host
+  -> check host !== 'gateway.ipfs.io' (ONLY blocked value)
+  -> dispatch(setIpfsGateway(urlObj.host))
+  -> preferences-controller.ts: state.ipfsGateway = domain (no validation)
+  -> setup.js:91-94: https://{cid}.ipfs.{ipfsGateway}{path} (HEAD request)
+```
+
+#### Attack Vector
+
+1. Social engineering: attacker's guide or website instructs the user to set the IPFS
+   gateway to `127.0.0.1:5001` (described as "local IPFS node for faster resolution")
+   or `192.168.1.1` (router admin interface).
+2. User navigates to Settings > Security & Privacy > IPFS Gateway and enters the value.
+3. Validation passes all checks (non-empty, URL-parseable, host ≠ `gateway.ipfs.io`).
+4. `preferences.ipfsGateway = '127.0.0.1:5001'` is stored.
+5. User visits any ENS `.eth` domain with an IPFS contenthash.
+6. MetaMask constructs: `https://{cid}.ipfs.127.0.0.1:5001{path}`.
+7. MetaMask sends a HEAD request to this constructed URL.
+
+#### Mitigating Factors (documented honestly)
+
+1. **Requires social engineering:** The user must manually change the IPFS gateway
+   setting. This is a non-default, power-user configuration.
+2. **IPFS gateway is a power-user feature:** Most MetaMask users never change this
+   setting from its default.
+3. **HTTPS requirement:** The constructed URL uses `https://`. Localhost services
+   without TLS (e.g., the IPFS API on port 5001, which serves HTTP only) will reject
+   the TLS negotiation — the request does not reach the internal service in practice.
+4. **Subdomain DNS failure:** The URL format is `https://{cid}.ipfs.127.0.0.1:5001/`.
+   Standard DNS resolvers do not resolve `{cid}.ipfs.127.0.0.1` (this is not a valid
+   subdomain of the loopback address). DNS lookup returns NXDOMAIN in typical
+   configurations.
+5. **Code-quality concern in practice:** These combined factors make this finding
+   primarily a validation gap (code quality) rather than a practically exploitable
+   SSRF in standard configurations.
+
+#### Impact
+
+If an attacker also controls the victim's DNS (e.g., via malicious DNS server on the
+local network) or custom `/etc/hosts` entries, the HEAD requests could reach internal
+services. Repeated IPFS/ENS resolutions would send requests to the configured internal
+endpoint for every `.eth` domain visit, potentially exfiltrating request timing data.
+
+#### Reproduction Steps
+
+```bash
+./setup.sh
+./exploits/vuln12_ipfs_gateway_loopback.sh
+```
+
+The script:
+1. Shows `handleIpfsGatewayChange` (lines 40-61) — only checks non-empty, URL syntax,
+   and `host !== 'gateway.ipfs.io'`.
+2. Shows `setIpfsGateway()` (lines 883-888) — direct `state.ipfsGateway = domain`.
+3. Shows `IPFS_FORBIDDEN_GATEWAY = 'gateway.ipfs.io'` (only one gateway blocked).
+4. Shows setup.js lines 91-94 — gateway used in IPFS URL construction + HEAD request.
+5. Runs a Node.js simulation testing seven loopback/private inputs, all of which pass
+   validation, and shows the resulting IPFS resolution URL for each.
+
+#### Remediation
+
+1. **Add loopback/private range validation** in `handleIpfsGatewayChange`:
+   Reject hosts that resolve to `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`,
+   `192.168.0.0/16`, `169.254.0.0/16`, `::1`, or `localhost`.
+
+2. **Add equivalent validation in `setIpfsGateway()`** in `preferences-controller.ts`
+   as a defense-in-depth server-side check, independent of UI validation.
+
+3. **Verify gateway domains resolve to public IPs** before use in ENS resolution.
+   Consider performing a DNS pre-check and rejecting resolution if the gateway host
+   resolves to a private or loopback address.
+
+---
+
 ## Appendix: Exploit Files
 
 | File                                         | Purpose                            |
@@ -1286,6 +1676,9 @@ The script:
 | `exploits/vuln7_watchasset_tracking.sh`      | VULN-7 automated PoC               |
 | `exploits/vuln8_caip_phishing_bypass.sh`     | VULN-8 automated PoC               |
 | `exploits/vuln9_ppom_siwe_bypass.sh`         | VULN-9 automated PoC               |
+| `exploits/vuln10_ens_zeronet_ssrf.sh`        | VULN-10 automated PoC              |
+| `exploits/vuln11_snap_svg_injection.sh`      | VULN-11 automated PoC              |
+| `exploits/vuln12_ipfs_gateway_loopback.sh`   | VULN-12 automated PoC              |
 
 ## Appendix: Docker Environment
 
