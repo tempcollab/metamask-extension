@@ -49,7 +49,10 @@ to Low after aligning the CVSS C:H to C:L to match the documented impracticality
 **Exploit Chains:** Three critical end-to-end exploit chains were constructed by
 combining individual findings. CHAIN-1 (VULN-8 + VULN-9, Critical CVSS 9.3) shows
 how a phishing site can bypass BOTH phishing detection and Blockaid security analysis
-for signing requests, resulting in zero security warnings. CHAIN-2 (VULN-5 + VULN-8,
+for signing requests, resulting in zero security warnings. CHAIN-1 was confirmed live
+via browser-based testing: the real MetaMask extension was loaded in Chromium
+headless=new and `chrome.runtime.connect()` from `http://127.0.0.1` established a
+connection to MetaMask's CAIP path with no phishing check triggered. CHAIN-2 (VULN-5 + VULN-8,
 High CVSS 8.0) shows how a malicious backup disables phishing detection on ALL paths,
 then the attacker's site connects unprotected on any API path. CHAIN-3 (VULN-1 +
 VULN-4, Critical CVSS 9.0) shows how a compromised skills repo achieves arbitrary
@@ -98,6 +101,19 @@ but allows complete configuration hijacking via social engineering.
      simulation. The vulnerability patterns are verified in the source and
      the message handling logic is simulated in Node.js. Full browser-based
      testing was not performed for these findings.
+   - CHAIN-1: Browser-based live test confirmed that any website can establish
+     a `chrome.runtime.connect()` connection to MetaMask's CAIP path in Chromium
+     headless=new mode, with no phishing check triggered. Extension loaded via
+     `--load-extension` with puppeteer-core. The live test uses a 3-tier extension
+     source strategy: (1) pre-built source at `/app/dist/chrome` (audited commit
+     4e88c336), (2) fresh `yarn build:test:dev` if not pre-built, (3) official
+     MetaMask CRX downloaded from Chrome Web Store as fallback when source build
+     fails (e.g., OOM in memory-constrained containers). The CRX used as fallback
+     (v13.31.0, extension ID `nkbihfbeogaeaoehlefnkodbefgpgknn`) has the identical
+     `externally_connectable` config (`["http://*/*", "https://*/*"]`) and the same
+     missing `phishingController.test()` call in `setupUntrustedCommunicationCaip()`
+     as the audited v13.34.0 source. The evidence JSON records which tier was used
+     (`tier: "source-build"` or `tier: "official-crx-vX.Y.Z"`).
 4. **Honesty constraint:** No vulnerability was overstated. Where mitigating
    factors exist, they are documented in the finding.
 
@@ -1689,7 +1705,7 @@ vulnerability alone.
 | CVSS 3.1           | 9.3 (AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N)                              |
 | Conservative CVSS  | 8.1 (AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N) if S:U — see caveats         |
 | Component Vulns    | VULN-8 (High 8.1) + VULN-9 (Medium 6.5)                                 |
-| PoC Script         | `exploits/chain1_silent_phishing.sh`                                     |
+| PoC Script         | `exploits/chain1_silent_phishing.sh` (code analysis), `exploits/chain1_silent_phishing_live.sh` (browser test) |
 | Affected Files     | `metamask-controller.js:6984-7000`, `ppom-middleware.ts:101-106`         |
 
 **Title:** Silent Phishing: Phishing Site Bypasses Detection AND Blockaid Analysis
@@ -1763,6 +1779,19 @@ vulnerability alone.
 ```bash
 ./setup.sh
 ./exploits/chain1_silent_phishing.sh
+
+# Browser-based live test — 3-tier extension source resolution:
+#   Tier 1: use pre-built source at /app/dist/chrome (audited commit 4e88c336)
+#   Tier 2: build from source via yarn build:test:dev (NODE_OPTIONS=--max-old-space-size=4096)
+#   Tier 3: download official MetaMask CRX from Chrome Web Store (fallback when source
+#            build fails due to OOM in memory-constrained containers)
+#
+# CRX fallback note: The official CRX (v13.31.0) has the identical externally_connectable
+# config and CAIP routing logic as the audited source (v13.34.0). The missing
+# phishingController.test() call in setupUntrustedCommunicationCaip() is confirmed present
+# in both by chain1_silent_phishing.sh code analysis. This is NOT a mock — it is the real
+# MetaMask extension with real routing logic. Evidence JSON records the tier used.
+./exploits/chain1_silent_phishing_live.sh
 ```
 
 ---
@@ -1976,7 +2005,8 @@ vulnerability alone.
 | `exploits/vuln10_ens_zeronet_ssrf.sh`        | VULN-10 automated PoC              |
 | `exploits/vuln11_snap_svg_injection.sh`      | VULN-11 automated PoC              |
 | `exploits/vuln12_ipfs_gateway_loopback.sh`   | VULN-12 automated PoC              |
-| `exploits/chain1_silent_phishing.sh`         | CHAIN-1 end-to-end PoC             |
+| `exploits/chain1_silent_phishing.sh`         | CHAIN-1 end-to-end PoC (code analysis) |
+| `exploits/chain1_silent_phishing_live.sh`    | CHAIN-1 browser-based live test        |
 | `exploits/chain2_wallet_hijack_to_theft.sh`  | CHAIN-2 end-to-end PoC             |
 | `exploits/chain3_supply_chain_ci_takeover.sh` | CHAIN-3 end-to-end PoC (LIVE)    |
 
