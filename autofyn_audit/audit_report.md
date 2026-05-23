@@ -183,8 +183,9 @@ checksum validation of the cloned content. Any attacker who can control what
 their content pulled onto every developer's machine that runs `yarn install`.
 
 The `.yarnrc.yml` file includes `enableScripts: false` with the
-`yarn-plugin-allow-scripts` plugin, but the `$root$` package (the repo itself)
-is in the allowlist and **the postinstall runs on every `yarn install`**.
+`yarn-plugin-allow-scripts` plugin, but `package.json` (line 827) lists
+`"$root$": true` under `lavamoat.allowScripts`, so **the postinstall runs
+on every `yarn install`**.
 
 #### Attack Vector
 
